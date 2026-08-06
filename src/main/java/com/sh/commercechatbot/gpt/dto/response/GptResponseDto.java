@@ -11,4 +11,8 @@ import java.util.List;
 @Getter
 public class GptResponseDto {
     private List<GptChoice> choices;
+
+    public GptChoice getSingleChoice() {
+        return choices.stream().findFirst().orElseThrow();
+    }
 }
