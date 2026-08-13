@@ -1,7 +1,7 @@
 package com.sh.commercechatbot.entity;
 
 
-import com.sh.aicommerce.auth.dto.request.AuthJoinRequestDto;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -49,15 +49,5 @@ public class Member {
     private String address;
     private String addressDetail;
 
-    public Member(AuthJoinRequestDto authJoinRequestDto, String customerKey) {
-        this.memberName = authJoinRequestDto.getMemberName();
-        this.customerKey = customerKey;
-        this.phone = authJoinRequestDto.getPhone();
-        this.email = authJoinRequestDto.getEmail();
-        this.passwd = authJoinRequestDto.getPasswd();
-        this.nickName = authJoinRequestDto.getNickName();
-        this.zipCode = authJoinRequestDto.getZipCode();
-        this.address = authJoinRequestDto.getAddress();
-        this.addressDetail = authJoinRequestDto.getAddressDetail();
-    }
+
 }

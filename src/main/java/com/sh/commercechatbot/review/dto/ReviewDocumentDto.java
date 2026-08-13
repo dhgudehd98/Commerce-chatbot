@@ -3,6 +3,9 @@ package com.sh.commercechatbot.review.dto;
 
 import com.sh.commercechatbot.entity.ProductOption;
 import com.sh.commercechatbot.entity.Review;
+import com.sh.commercechatbot.enums.review.FitEvaluation;
+import com.sh.commercechatbot.enums.review.FitPreference;
+import com.sh.commercechatbot.enums.review.ReviewStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

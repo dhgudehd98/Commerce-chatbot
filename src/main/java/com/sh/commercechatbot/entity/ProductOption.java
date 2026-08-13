@@ -1,7 +1,6 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.product.ProductOptionStatus;
-import com.sh.aicommerce.product.dto.request.ProductOptionCreateRequestDto;
+import com.sh.commercechatbot.enums.product.ProductOptionStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -39,19 +38,7 @@ public class ProductOption {
     @OneToMany(mappedBy = "productOption")
     private List<ProductInventory> inventories = new ArrayList<>();
 
-    public static ProductOption createOption(
-            ProductVariant productVariant,
-            ProductOptionCreateRequestDto dto
-    ) {
-        ProductOption option = new ProductOption();
-        option.productVariant = productVariant;
-        option.sku = dto.getSku();
-        option.size = dto.getSize();
-        option.additionalPrice = dto.getAdditionalPrice();
-        option.status = ProductOptionStatus.PREPARING;
 
-        return option;
-    }
 
     public void onSale() {
         this.status = ProductOptionStatus.AVAILABLE;

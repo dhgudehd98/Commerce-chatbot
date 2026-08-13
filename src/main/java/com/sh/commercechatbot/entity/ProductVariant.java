@@ -1,8 +1,7 @@
 package com.sh.commercechatbot.entity;
 
 
-import com.sh.aicommerce.enums.product.ProductVariantStatus;
-import com.sh.aicommerce.product.dto.request.ProductVariantRequestDto;
+import com.sh.commercechatbot.enums.product.ProductVariantStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -62,20 +61,7 @@ public class ProductVariant {
     @Column(nullable = false)
     private Integer price;
 
-    public static ProductVariant create(
-            Product product,
-            ProductVariantRequestDto dto
-    ) {
-        ProductVariant variant = new ProductVariant();
-        variant.product = product;
-        variant.variantName = dto.getVariantName();
-        variant.color = dto.getColor();
-        variant.modelNumber = dto.getModelNumber();
-        variant.price = dto.getPrice();
-        variant.productVariantStatus = ProductVariantStatus.PREPARING;
 
-        return variant;
-    }
 
     public void onSale() {
         this.productVariantStatus = ProductVariantStatus.ON_SALE;

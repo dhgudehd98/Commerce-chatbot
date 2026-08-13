@@ -1,10 +1,10 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.enums.payment.*;
-import com.sh.aicommerce.payment.dto.request.PaymentRequestDto;
-import com.sh.aicommerce.toss.dto.request.TossPaymentRequestDto;
-import com.sh.aicommerce.toss.dto.response.TossPaymentSuccessResponseDto;
+
+import com.sh.commercechatbot.common.exception.payment.PaymentException;
+import com.sh.commercechatbot.enums.payment.CardCompany;
+import com.sh.commercechatbot.enums.payment.PaymentMethod;
+import com.sh.commercechatbot.enums.payment.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -62,38 +62,7 @@ public class Payment {
     private LocalDateTime updatedAt;
     private LocalDateTime paidAt;
 
-    public static Payment createPayment(PaymentRequestDto dto, Integer totalPrice) {
-        Payment payment = new Payment();
-        payment.paymentMethod = dto.getPaymentMethod();
-        payment.status = PaymentStatus.READY;
-        payment.amount = totalPrice;
-        payment.createdAt = LocalDateTime.now();
-        payment.updatedAt = LocalDateTime.now();
 
-        if (dto.getPaymentMethod() == PaymentMethod.SAVED_CARD) {
-            payment.savedCardId = dto.getSavedCardId();
-            payment.paymentProvider = "PG_BILLING";
-            payment.paymentMethodLabel = "등록 카드 간편결제";
-            return payment;
-        }
-
-        if (dto.getPaymentMethod() == PaymentMethod.SAVED_ACCOUNT) {
-            payment.savedAccountId = dto.getSavedAccountId();
-            payment.paymentProvider = "PG_BILLING";
-            payment.paymentMethodLabel = "등록 계좌 간편결제";
-            return payment;
-        }
-
-        if (dto.getPaymentMethod() == PaymentMethod.TOSS) {
-            payment.paymentProvider = "TOSS_PAYMENTS";
-            payment.paymentMethodLabel = "토스페이먼츠 일반결제";
-
-            return payment;
-
-        }
-
-        return payment;
-    }
 
     public void setStatusConfirmingInWidget(String paymentKey) {
         if (this.status != PaymentStatus.READY) {
@@ -110,60 +79,6 @@ public class Payment {
         }
         this.status = PaymentStatus.CONFIRMING;
         this.updatedAt = LocalDateTime.now();
-    }
-
-    public void updateCardPaymentByTossWidget(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
-        if (response == null) {
-            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
-        }
-
-        if (response.getCard() == null) {
-            throw new PaymentException("카드 결제 승인 정보가 존재하지 않습니다.");
-        }
-
-        if (!"DONE".equals(response.getStatus())) {
-            throw new PaymentException("토스 결제 승인이 완료되지 않았 습니다.");
-        }
-
-        this.paidAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        this.provider = response.getMethod();
-        this.approvedNumber = response.getCard().getApproveNo();
-        this.paymentKey = request.getPaymentKey();
-        this.cardCode = response.getCard().getIssuerCode();
-        this.cardCompany =
-                CardCompany.fromCode(response.getCard().getIssuerCode());
-        this.status = PaymentStatus.PAID;
-        this.installmentMonths =
-                response.getCard().getInstallmentPlanMonths();
-    }
-
-    public void updateEasyPaymentByTossWidget(TossPaymentRequestDto request, TossPaymentSuccessResponseDto response) {
-        this.paidAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        this.paymentKey = request.getPaymentKey();
-        this.provider = response.getEasyPay().getProvider();
-        this.status = PaymentStatus.PAID;
-    }
-
-
-    public void updateCardByBillingCard(TossPaymentSuccessResponseDto response) {
-        if (response == null) {
-            throw new PaymentException("토스 결제 승인 응답이 존재하지 않습니다.");
-        }
-        if (!"DONE".equals(response.getStatus())) {
-            throw new PaymentException("토스 자동결제 승인이 완료되지 않았 습니다.");
-        }
-
-        this.paidAt = LocalDateTime.now();
-        this.paymentKey = response.getPaymentKey();
-        this.provider = response.getMethod(); // "카드"
-        this.approvedNumber = response.getCard().getApproveNo();
-        this.cardCode = response.getCard().getIssuerCode();
-        this.cardCompany = CardCompany.fromCode(response.getCard().getIssuerCode());
-        this.installmentMonths = response.getCard().getInstallmentPlanMonths();
-        this.updatedAt = LocalDateTime.now();
-        this.status = PaymentStatus.PAID;
     }
 
     public void setOrder(Orders orders) {

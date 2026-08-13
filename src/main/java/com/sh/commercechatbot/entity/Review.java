@@ -2,9 +2,9 @@ package com.sh.commercechatbot.entity;
 
 
 import com.sh.commercechatbot.common.exception.review.ReviewException;
-import com.sh.commercechatbot.review.dto.FitEvaluation;
-import com.sh.commercechatbot.review.dto.FitPreference;
-import com.sh.commercechatbot.review.dto.ReviewStatus;
+import com.sh.commercechatbot.enums.review.FitEvaluation;
+import com.sh.commercechatbot.enums.review.FitPreference;
+import com.sh.commercechatbot.enums.review.ReviewStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

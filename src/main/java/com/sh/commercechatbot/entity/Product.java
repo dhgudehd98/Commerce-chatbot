@@ -1,8 +1,7 @@
 package com.sh.commercechatbot.entity;
 
 
-import com.sh.aicommerce.enums.product.ProductCategory;
-import com.sh.aicommerce.product.dto.request.ProductCreateRequestDto;
+import com.sh.commercechatbot.enums.product.ProductCategory;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -44,14 +43,5 @@ public class Product {
     )
     private List<String> tags = new ArrayList<>();
 
-    public static Product create(ProductCreateRequestDto dto, Brand brand) {
-        Product product = new Product();
-        product.brand = brand;
-        product.baseProductName = dto.getBaseProductName();
-        product.productDescription = dto.getProductDescription();
-        product.productCategory = dto.getProductCategory();
-        product.tags = new ArrayList<>(dto.getTags());
 
-        return product;
-    }
 }

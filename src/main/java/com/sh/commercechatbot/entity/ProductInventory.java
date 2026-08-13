@@ -1,6 +1,6 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.common.exception.wms.InventoryException;
+import com.sh.commercechatbot.common.exception.wms.InventoryException;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

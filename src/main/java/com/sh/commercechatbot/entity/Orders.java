@@ -1,6 +1,6 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.order.OrderStatus;
+import com.sh.commercechatbot.enums.order.OrderStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

@@ -1,8 +1,8 @@
 package com.sh.commercechatbot.review.es;
 
 
-import com.sh.commercechatbot.review.dto.FitEvaluation;
-import com.sh.commercechatbot.review.dto.FitPreference;
+import com.sh.commercechatbot.enums.review.FitEvaluation;
+import com.sh.commercechatbot.enums.review.FitPreference;
 import com.sh.commercechatbot.review.dto.ReviewDocumentDto;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,7 +1,7 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.product.ProductImageType;
-import com.sh.aicommerce.product.dto.request.ProductImageCreateRequestDto;
+
+import com.sh.commercechatbot.enums.product.ProductImageType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,17 +42,5 @@ public class ProductImage {
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;
 
-    public static ProductImage create(
-            ProductVariant productVariant,
-            ProductImageCreateRequestDto dto
-    ) {
-        ProductImage image = new ProductImage();
-        image.productVariant = productVariant;
-        image.imageType = dto.getImageType();
-        image.imageUrl = dto.getImageUrl();
-        image.objectKey = dto.getObjectKey();
-        image.displayOrder = dto.getDisplayOrder();
 
-        return image;
-    }
 }

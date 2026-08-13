@@ -1,21 +1,22 @@
 package com.sh.commercechatbot.common.exception;
 
 
-import com.sh.aicommerce.common.exception.auth.AuthException;
-import com.sh.aicommerce.common.exception.brand.BrandException;
-import com.sh.aicommerce.common.exception.card.CardException;
-import com.sh.aicommerce.common.exception.delivery.DeliveryException;
-import com.sh.aicommerce.common.exception.member.MemberException;
-import com.sh.aicommerce.common.exception.order.OrderException;
-import com.sh.aicommerce.common.exception.orderItem.OrderItemException;
-import com.sh.aicommerce.common.exception.outbox.OutboxException;
-import com.sh.aicommerce.common.exception.payment.PaymentException;
-import com.sh.aicommerce.common.exception.product.ProductException;
-import com.sh.aicommerce.common.exception.review.ReviewException;
-import com.sh.aicommerce.common.exception.search.SearchException;
-import com.sh.aicommerce.common.exception.search.WeatherException;
-import com.sh.aicommerce.common.exception.wms.InventoryException;
-import com.sh.aicommerce.common.exception.wms.WarehouseException;
+
+import com.sh.commercechatbot.common.exception.auth.AuthException;
+import com.sh.commercechatbot.common.exception.brand.BrandException;
+import com.sh.commercechatbot.common.exception.card.CardException;
+import com.sh.commercechatbot.common.exception.delivery.DeliveryException;
+import com.sh.commercechatbot.common.exception.member.MemberException;
+import com.sh.commercechatbot.common.exception.order.OrderException;
+import com.sh.commercechatbot.common.exception.orderItem.OrderItemException;
+import com.sh.commercechatbot.common.exception.outbox.OutboxException;
+import com.sh.commercechatbot.common.exception.payment.PaymentException;
+import com.sh.commercechatbot.common.exception.product.ProductException;
+import com.sh.commercechatbot.common.exception.review.ReviewException;
+import com.sh.commercechatbot.common.exception.search.SearchException;
+import com.sh.commercechatbot.common.exception.search.WeatherException;
+import com.sh.commercechatbot.common.exception.wms.InventoryException;
+import com.sh.commercechatbot.common.exception.wms.WarehouseException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -102,7 +103,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("result", "N", "message", e.getMessage()));
     }
-    @ExceptionHandler(com.sh.aicommerce.common.exception.auth.AuthException.class)
+    @ExceptionHandler(AuthException.class)
     public ResponseEntity<?> handleAuthException(AuthException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("result", "N", "message", e.getMessage()));
