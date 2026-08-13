@@ -1,7 +1,8 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.review.reviewEvent.ReviewEmbeddingFailureCode;
-import com.sh.aicommerce.enums.review.reviewEvent.ReviewEventType;
+;
+import com.sh.commercechatbot.enums.review.reviewEvent.ReviewEmbeddingFailureCode;
+import com.sh.commercechatbot.enums.review.reviewEvent.ReviewEventType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

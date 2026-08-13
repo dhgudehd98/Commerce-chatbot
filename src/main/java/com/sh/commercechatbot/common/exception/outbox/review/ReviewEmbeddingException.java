@@ -1,6 +1,5 @@
 package com.sh.commercechatbot.common.exception.outbox.review;
 
-import com.sh.aicommerce.enums.review.reviewEvent.ReviewEmbeddingFailureCode;
 import lombok.Getter;
 
 @Getter

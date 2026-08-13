@@ -1,6 +1,7 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.search.SearchType;
+
+import com.sh.commercechatbot.enums.search.SearchType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

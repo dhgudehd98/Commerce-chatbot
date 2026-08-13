@@ -1,7 +1,8 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.wms.StockMovementReferenceType;
-import com.sh.aicommerce.enums.wms.StockMovementStatus;
+
+import com.sh.commercechatbot.enums.wms.StockMovementReferenceType;
+import com.sh.commercechatbot.enums.wms.StockMovementStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

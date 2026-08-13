@@ -1,6 +1,6 @@
 package com.sh.commercechatbot.entity;
 
-import com.sh.aicommerce.enums.payment.Bank;
+import com.sh.commercechatbot.enums.payment.Bank;
 import jakarta.persistence.*;
 import lombok.NoArgsConstructor;
 
