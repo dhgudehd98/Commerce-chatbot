@@ -1,7 +1,7 @@
-package com.sh.commercechatbot.chat.service;
+package com.sh.commercechatbot.reviewChatbot.service;
 
-import com.sh.commercechatbot.chat.dto.request.ChatRequestDto;
-import com.sh.commercechatbot.chat.dto.response.ChatResponseDto;
+import com.sh.commercechatbot.reviewChatbot.dto.request.ChatRequestDto;
+import com.sh.commercechatbot.reviewChatbot.dto.response.ChatResponseDto;
 import com.sh.commercechatbot.llm.dto.request.LlmChatRequestDto;
 import com.sh.commercechatbot.llm.enums.LlmModel;
 import com.sh.commercechatbot.llm.enums.LlmType;
@@ -16,7 +16,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ChatServiceImpl implements ChatService{
+public class ReviewChatbotServiceImpl implements ReviewChatbotService {
 
     private final Map<LlmType, LlmClientService> llmClientServiceMap;
     @Override

@@ -1,4 +1,4 @@
-package com.sh.commercechatbot.chat.dto.response;
+package com.sh.commercechatbot.reviewChatbot.dto.response;
 
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseError;

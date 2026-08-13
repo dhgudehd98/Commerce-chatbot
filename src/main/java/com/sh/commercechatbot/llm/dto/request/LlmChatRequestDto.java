@@ -1,6 +1,6 @@
 package com.sh.commercechatbot.llm.dto.request;
 
-import com.sh.commercechatbot.chat.dto.request.ChatRequestDto;
+import com.sh.commercechatbot.reviewChatbot.dto.request.ChatRequestDto;
 import com.sh.commercechatbot.llm.enums.LlmModel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
