@@ -4,11 +4,14 @@ import com.sh.commercechatbot.llm.enums.LlmModel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 public class ChatRequestDto {
-    private String request;
+    private ChatConversationState state;
+    private String currentMessage;
     private LlmModel llmModel;
 }
