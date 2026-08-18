@@ -1,5 +1,7 @@
 package com.sh.commercechatbot.reviewChatbot.service;
 
+import com.sh.commercechatbot.common.util.ChatUtilService;
+import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ChatConversationState;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ChatRequestDto;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ConversationAnalysisRequestDto;
@@ -8,6 +10,7 @@ import com.sh.commercechatbot.llm.dto.request.LlmChatRequestDto;
 import com.sh.commercechatbot.llm.enums.LlmModel;
 import com.sh.commercechatbot.llm.enums.LlmType;
 import com.sh.commercechatbot.llm.service.LlmClientService;
+import com.sh.commercechatbot.reviewChatbot.dto.response.ConversationAnalysisResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,7 @@ import java.util.Map;
 public class ReviewChatbotServiceImpl implements ReviewChatbotService {
 
     private final ObjectMapper objectMapper;
+    private final ChatUtilService chatUtilService;
     private final Map<LlmType, LlmClientService> llmClientServiceMap;
 
     @Override
@@ -41,8 +45,48 @@ public class ReviewChatbotServiceImpl implements ReviewChatbotService {
 //        log.info("[사용자 요청 정보] {}", llmChatRequestDto.toString());
 
         return clientService.getNonStream(llmChatRequestDto)
-                .map(ChatResponseDto::new);
+                .flatMap(llmChatResponse -> handleConversionAnalysis(llmChatResponse, requestDto, memberId));
     }
+
+    private Mono<ChatResponseDto> handleConversionAnalysis(LlmChatResponseDto llmChatResponse, ChatRequestDto requestDto, Long memberId) {
+
+        if (llmChatResponse.getResponseError() != null) {
+            return Mono.just(
+                    new ChatResponseDto(null, llmChatResponse.getResponseError())
+            );
+        }
+
+        ConversationAnalysisResponseDto analysisResponseDto;
+
+        analysisResponseDto = chatUtilService.parseToConversationResponse(llmChatResponse.getLlmResponse());
+
+        return handleNexAction(analysisResponseDto, requestDto, memberId);
+    }
+
+    private Mono<ChatResponseDto> handleNexAction(ConversationAnalysisResponseDto analysisResponseDto, ChatRequestDto requestDto, Long memberId) {
+        log.info("[LLM Next Action] Intent : {}, NextAction : {}", analysisResponseDto.getIntent(), analysisResponseDto.getNextAction());
+
+        return switch (analysisResponseDto.getNextAction()) {
+            case ASK_PRODUCT -> handleActionAskProduct(analysisResponseDto);
+            case RESOLVE_PRODUCT -> null;
+            case ASK_PRODUCT_SELECTION -> null;
+            case ASK_OPTIONAL_BODY_INFO -> null;
+            case SEARCH_REVIEWS -> null;
+            case GENERATE_RECOMMENDATION -> null;
+            case COMPLETE -> null;
+            case OUT_OF_SCOPE -> null;
+        };
+    }
+
+    private Mono<ChatResponseDto> handleActionAskProduct(ConversationAnalysisResponseDto analysisResponseDto) {
+        log.info("[LLM Process Action AskProduct]");
+        String message = "어떤 상품의 사이즈가 궁금한가요 ? " + "상품명을 입력주시면 구매 리뷰를 확인해드릴게요";
+
+        return Mono.just(
+                new ChatResponseDto(message, null)
+        );
+    }
+
     @Override
     public Flux<ChatResponseDto> chat(ChatRequestDto requestDto, Long memberId) {
 
