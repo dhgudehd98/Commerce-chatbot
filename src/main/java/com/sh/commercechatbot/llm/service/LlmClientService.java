@@ -6,9 +6,12 @@ import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
 import com.sh.commercechatbot.llm.enums.LlmType;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 public interface LlmClientService {
     LlmType getLlmType();
     Flux<LlmChatResponseDto> get(LlmChatRequestDto llmChatRequestDto);
+
+    Mono<LlmChatResponseDto> getNonStream(LlmChatRequestDto llmChatRequestDto);
 }

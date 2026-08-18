@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -18,11 +19,20 @@ public class ReviewChatbotController {
 
     private final ReviewChatbotService reviewChatbotService;
 
-    @PostMapping("")
+    @PostMapping("stream")
     public Flux<ChatResponseDto> chat(
             @RequestBody ChatRequestDto request
     ){
-        return reviewChatbotService.chat(request);
+        Long memberId = 1L;
+        return reviewChatbotService.chat(request, memberId);
+    }
+
+    @PostMapping("")
+    public Mono<ChatResponseDto> chatNonStream(
+            @RequestBody ChatRequestDto request
+    ){
+        Long memberId = 1L;
+        return reviewChatbotService.chatNonStream(request, memberId);
     }
 
 }

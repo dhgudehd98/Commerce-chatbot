@@ -10,4 +10,5 @@ import lombok.NoArgsConstructor;
 public class GptChoice {
     private String finish_reason;
     private GptResponseMessageDto delta;
+    private GptResponseMessageDto message;
 }

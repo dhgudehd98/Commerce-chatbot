@@ -21,11 +21,11 @@ public class GptRequestDto {
     private Boolean stream;
     private GptResponseFormat response_format;
 
-    public GptRequestDto(LlmChatRequestDto llmChatRequestDto) {
+    public GptRequestDto(LlmChatRequestDto llmChatRequestDto, Boolean isStream) {
         this.messages = new ArrayList<>();
         this.messages.add(new GptRequestCompletionDto(GptMessageRole.SYSTEM, llmChatRequestDto.getPrompt()));
         this.messages.add(new GptRequestCompletionDto(GptMessageRole.USER, llmChatRequestDto.getRequest()));
-        this.stream = true;
+        this.stream = isStream;
         this.model = llmChatRequestDto.getLlmModel();
     }
 }

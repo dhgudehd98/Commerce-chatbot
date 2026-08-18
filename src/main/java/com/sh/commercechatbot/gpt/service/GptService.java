@@ -35,7 +35,7 @@ public class GptService implements LlmClientService {
     // 여기서 실제로 Gpt한테 요청
     @Override
     public Flux<LlmChatResponseDto> get(LlmChatRequestDto llmChatRequestDto) {
-        GptRequestDto gptRequestDto = new GptRequestDto(llmChatRequestDto);
+        GptRequestDto gptRequestDto = new GptRequestDto(llmChatRequestDto, true);
         return webClient.post()
                 .uri("https://api.openai.com/v1/chat/completions")
                 .header("Authorization", "Bearer " + gptApiKey)
@@ -50,12 +50,31 @@ public class GptService implements LlmClientService {
                 .takeWhile(response -> Optional.ofNullable(response.getSingleChoice().getFinish_reason()).isEmpty())
                 .map(gptResponseDto -> {
                     try {
-                        log.info("GPT 응답 값 : {}", gptResponseDto.getSingleChoice().getDelta().getContent());
-                        return LlmChatResponseDto.getLlmChatResponseDtoFromStream(gptResponseDto);
+                        log.info("GPT 응답 값 : {}", gptResponseDto.getSingleChoice().getMessage().getContent());
+                        return LlmChatResponseDto.getLlmChatResponseDtoFromNotStream(gptResponseDto);
                     } catch (Exception e) {
                         log.error("[GPT Response Error] : " + e.getMessage());
                         return new LlmChatResponseDto(new LlmChatResponseError("500" , e.getMessage()));
                     }
+                });
+    }
+
+    @Override
+    public Mono<LlmChatResponseDto> getNonStream(LlmChatRequestDto llmChatRequestDto) {
+        GptRequestDto request = new GptRequestDto(llmChatRequestDto, false);
+        return webClient.post()
+                .uri("https://api.openai.com/v1/chat/completions")
+                .header("Authorization", "Bearer " + gptApiKey)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(GptResponseDto.class)
+                .map(response -> {
+                    String content = response
+                            .getSingleChoice()
+                            .getMessage()
+                            .getContent();
+
+                    return new LlmChatResponseDto(content);
                 });
     }
 }

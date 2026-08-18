@@ -17,11 +17,10 @@ public class LlmChatRequestDto {
 //    private List<ChatMessageDto> messageList;
 
 
-    public
-    LlmChatRequestDto(ChatRequestDto chatRequestDto, String systemPrompt) {
-        this.request = chatRequestDto.getRequest();
+    public LlmChatRequestDto(ChatRequestDto chatRequestDto, String request, String systemPrompt) {
+        this.request = request;
         this.prompt = systemPrompt;
-        this.useJson = false;
+        this.useJson = true;
         this.llmModel = chatRequestDto.getLlmModel();
     }
 }
