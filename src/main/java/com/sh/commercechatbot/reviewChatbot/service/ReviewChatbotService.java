@@ -3,6 +3,7 @@ package com.sh.commercechatbot.reviewChatbot.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.commercechatbot.common.util.ChatUtilService;
+import com.sh.commercechatbot.enums.chatbot.request.NextAction;
 import com.sh.commercechatbot.es.product.dto.ProductSearchResultDto;
 import com.sh.commercechatbot.es.product.repository.ProductDocumentRepository;
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
@@ -166,11 +167,15 @@ public class ReviewChatbotService {
                     }
 
                     // 검색 결과 상품이 여러개 일 때
-                    return handleMultiProduct(
-                            analysisResponseDto,
-                            results,
-                            memberId
-                    );
+                    try {
+                        return handleMultiProduct(
+                                analysisResponseDto,
+                                results,
+                                memberId
+                        );
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
 
 
                 });
@@ -194,7 +199,11 @@ public class ReviewChatbotService {
         log.info("[상품명 결과 조회 1개 발견]");
 
         ResolvedProductDto resolvedProductDto = new ResolvedProductDto(searchResultDto.getVariantId(), searchResultDto.getProductName());
-        ChatConversationState nextState = new ChatConversationState(analysisResponseDto.getIntent(), resolvedProductDto, List.of(), analysisResponseDto.getNextAction());
+        ChatConversationState nextState = new ChatConversationState(
+                analysisResponseDto.getIntent(),
+                resolvedProductDto,
+                List.of(),
+                NextAction.ASK_OPTIONAL_BODY_INFO);
         ChatResponseDto chatResponseDto = new ChatResponseDto(
                 "요청하신 상품을 찾았습니다. 상품명: "
                         + searchResultDto.getProductName()
@@ -205,9 +214,35 @@ public class ReviewChatbotService {
         return saveStateAndReturnResponse(memberId, nextState, chatResponseDto);
     }
 
-    private Mono<ChatResponseDto> handleMultiProduct(ConversationAnalysisResponseDto analysisResponseDto, List<ProductSearchResultDto> results, Long memberId) {
-        return null;
+    private Mono<ChatResponseDto> handleMultiProduct(ConversationAnalysisResponseDto analysisResponseDto, List<ProductSearchResultDto> results, Long memberId) throws JsonProcessingException {
+        log.info("[상품명 결과 조회] 결과 : {]", results.size());
+        List<ResolvedProductDto> candidates = results.stream()
+                .map(searchResultDto -> new ResolvedProductDto(searchResultDto.getVariantId(), searchResultDto.getProductName()))
+                .toList();
+
+        ChatConversationState nextState = new ChatConversationState(
+                analysisResponseDto.getIntent(),
+                null,
+                candidates,
+                NextAction.ASK_PRODUCT_SELECTION);
+
+        StringBuilder message = new StringBuilder(
+                "비슷한 상품이 여러 개 검색되었습니다. "
+                + "추천받을 상품 번호를 선택해 주세요.\n"
+        );
+
+        for (int index = 0; index < results.size(); index++) {
+            ResolvedProductDto dto = candidates.get(index);
+            message.append(dto.getVariantId());
+            message.append(". ");
+            message.append(dto.getProductName());
+        }
+
+        ChatResponseDto chatResponseDto = new ChatResponseDto(message.toString(), null);
+
+        return saveStateAndReturnResponse(memberId, nextState, chatResponseDto);
     }
+
 
     private Mono<ChatResponseDto> saveStateAndReturnResponse(Long memberId, ChatConversationState nextState, ChatResponseDto chatResponseDto) throws JsonProcessingException {
         return conversationRepository.save(memberId, nextState)

@@ -18,7 +18,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class ChatConversationRepositoryInRedis {
     private static final String KEY_PREFIX = "chatbot:conversation:";
-    private static final Duration STATE_TTL = Duration.ofMinutes(10);
+    private static final Duration STATE_TTL = Duration.ofMinutes(60);
     private final ReactiveStringRedisTemplate redisTemplate;
     private final ObjectMapper mapper;
 
