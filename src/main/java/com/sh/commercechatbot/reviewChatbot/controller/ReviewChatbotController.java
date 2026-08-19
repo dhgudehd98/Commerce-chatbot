@@ -1,6 +1,7 @@
 package com.sh.commercechatbot.reviewChatbot.controller;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ChatRequestDto;
 import com.sh.commercechatbot.reviewChatbot.dto.response.ChatResponseDto;
 import com.sh.commercechatbot.reviewChatbot.service.ReviewChatbotService;
@@ -22,7 +23,7 @@ public class ReviewChatbotController {
     @PostMapping("stream")
     public Flux<ChatResponseDto> chat(
             @RequestBody ChatRequestDto request
-    ){
+    ) throws JsonProcessingException {
         Long memberId = 1L;
         return reviewChatbotService.chat(request, memberId);
     }
