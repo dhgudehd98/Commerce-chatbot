@@ -31,7 +31,7 @@ public class ReviewChatbotController {
     @PostMapping("")
     public Mono<ChatResponseDto> chatNonStream(
             @RequestBody ChatRequestDto request
-    ){
+    ) throws JsonProcessingException {
         Long memberId = 1L;
         return reviewChatbotService.chatNonStream(request, memberId);
     }

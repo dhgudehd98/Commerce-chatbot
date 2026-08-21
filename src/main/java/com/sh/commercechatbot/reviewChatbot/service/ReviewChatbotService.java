@@ -3,7 +3,9 @@ package com.sh.commercechatbot.reviewChatbot.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.commercechatbot.common.util.ChatUtilService;
+import com.sh.commercechatbot.enums.chatbot.request.ChatIntent;
 import com.sh.commercechatbot.enums.chatbot.request.NextAction;
+import com.sh.commercechatbot.es.document.product.ProductDocument;
 import com.sh.commercechatbot.es.product.dto.ProductSearchResultDto;
 import com.sh.commercechatbot.es.product.repository.ProductDocumentRepository;
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
@@ -40,8 +42,12 @@ public class ReviewChatbotService {
     private final ProductDocumentRepository productDocumentRepository;
     private final ChatConversationRepositoryInRedis conversationRepository;
 
-    public Mono<ChatResponseDto> chatNonStream(ChatRequestDto requestDto, Long memberId) {
+    public Mono<ChatResponseDto> chatNonStream(ChatRequestDto requestDto, Long memberId) throws JsonProcessingException {
 
+        if (requestDto.getSelectedVariantId() != null) {
+            log.info("[사용자 상품 선택] : selectedVariantId : {}", requestDto.getSelectedVariantId());
+            return handleProductSelection(requestDto.getSelectedVariantId(), memberId);
+        }
         return conversationRepository
                 .findStateByMemberId(memberId)
                 .defaultIfEmpty(ChatConversationState.initial())
@@ -99,12 +105,13 @@ public class ReviewChatbotService {
         return switch (analysisResponseDto.getNextAction()) {
             case ASK_PRODUCT -> handleActionAskProduct(analysisResponseDto, memberId);
             case RESOLVE_PRODUCT -> handleResolveProduct(analysisResponseDto, requestDto, memberId);
-            case ASK_PRODUCT_SELECTION -> null;
+//            case ASK_PRODUCT_SELECTION -> handleProductSelection(analysisResponseDto, requestDto, memberId);
             case ASK_OPTIONAL_BODY_INFO -> null;
             case SEARCH_REVIEWS -> null;
             case GENERATE_RECOMMENDATION -> null;
             case COMPLETE -> null;
             case OUT_OF_SCOPE -> null;
+            default -> null;
         };
     }
 
@@ -184,8 +191,13 @@ public class ReviewChatbotService {
 
     private Mono<ChatResponseDto> handleProductNotFound(ConversationAnalysisResponseDto analysis, Long memberId) throws JsonProcessingException {
         log.info("[상품명 결과조회] Not Found");
+
+        // 상품 결과가 검색이 안된 경우에는 nextAction에 대한 값을 ASK_PRODUCT로 설정
         ChatConversationState nextState = new ChatConversationState(
-                analysis.getIntent(), null, List.of(), analysis.getNextAction()
+                analysis.getIntent(),
+                null,
+                List.of(),
+                NextAction.ASK_PRODUCT
         );
 
         ChatResponseDto chatResponseDto = new ChatResponseDto(
@@ -241,6 +253,48 @@ public class ReviewChatbotService {
         ChatResponseDto chatResponseDto = new ChatResponseDto(message.toString(), null);
 
         return saveStateAndReturnResponse(memberId, nextState, chatResponseDto);
+    }
+
+    private Mono<ChatResponseDto> handleProductSelection(Long selectedVariantId, Long memberId) throws JsonProcessingException {
+
+        log.info("[사용자 상품 선택 정합성 검수] selectedVariantId : {}", selectedVariantId);
+
+        return conversationRepository.findStateByMemberId(memberId)
+                .flatMap(state -> {
+                    List<ResolvedProductDto> candidates = state.getProductCandidates() == null ?
+                            List.of() : state.getProductCandidates();
+
+                    return candidates.stream()
+                            .filter(candidate -> candidate.getVariantId().equals(selectedVariantId))
+                            .findFirst()
+                            .map(candidate -> confirmSelectedProduct(memberId, candidate))
+                            .orElseGet(() -> Mono.just(new ChatResponseDto("해당 상품 정보를 찾을 수 없습니다. 잠시후에 다시 시도해주세요.", null)));
+
+                });
+    }
+
+    // 선택한 상품 확정 짓고, state 업데이트 로직 설정
+    private Mono<ChatResponseDto> confirmSelectedProduct(Long memberId,ResolvedProductDto selectedProduct) {
+        log.info("[선택한 상품 확정] 상품ID : {}, 상품명 : {}", selectedProduct.getVariantId(), selectedProduct.getProductName());
+        ChatConversationState nextState = new ChatConversationState(
+                ChatIntent.SIZE_RECOMMENDATION,
+                selectedProduct,
+                List.of(),
+                NextAction.ASK_OPTIONAL_BODY_INFO
+        );
+
+        ChatResponseDto response = new ChatResponseDto(
+                "해당 상품 : " +
+                selectedProduct.getProductName() +
+                "의 상품 리뷰를 확인하기 위해서 키와 몸무게, 원하는 핏을 알려주시면 비슷한 조건의 리뷰를 확인해드릴게요.",
+                null
+                );
+
+        try {
+            return saveStateAndReturnResponse(memberId, nextState,response);
+        } catch (JsonProcessingException e) {
+            return Mono.error(e);
+        }
     }
 
 
@@ -323,7 +377,7 @@ public class ReviewChatbotService {
             OVERSIZED: 오버핏, 매우 넉넉하게, 크게
             제공하지 않았다면 null
 
-          - reviewSearchText:
+          - semanticQuery:
             리뷰 의미 검색용으로 사용할 짧은 문장
             상품명, 브랜드명, 색상, 키와 몸무게를 제외하고
             사용자가 원하는 착용 의도만 정규화한다.
@@ -360,6 +414,8 @@ public class ReviewChatbotService {
           - 상품명과 확정된 상품 정보가 모두 없으면 ASK_PRODUCT
           - 상품명은 있지만 확정된 productVariantId가 없으면 RESOLVE_PRODUCT
           - 이전 상태에서 상품 후보 선택을 요청했다면 ASK_PRODUCT_SELECTION
+            사용자가 후보 ID를 입력했더라도 서버 검증이 필요하므로
+            ASK_PRODUCT_SELECTION을 반환한다.
           - 상품이 확정되었지만 신체정보와 핏 선호가 없고,
             사용자가 생략 의사를 밝히지 않았다면 ASK_OPTIONAL_BODY_INFO
           - 상품이 확정되고 리뷰 검색을 진행할 수 있으면 SEARCH_REVIEWS
@@ -375,8 +431,11 @@ public class ReviewChatbotService {
           - 사용자가 값을 명시적으로 수정하면 새로운 값을 우선한다.
           - 이전에 상품명을 질문했고 사용자가 상품명만 답했다면
             이전 의도인 SIZE_RECOMMENDATION을 유지한다.
-          - 이전 상태의 productVariantId는 서버가 검증한 값으로 취급한다.
-          - 사용자 메시지에서 productVariantId를 임의로 추론하지 마라.
+          - 이전 상태의 product.variantId는 서버가 검증한 값으로 취급한다.
+          - 이전 상태의 productCandidates는 서버가 검색한 후보 목록이다.
+          - 사용자가 선택한 variantId가 productCandidates에 실제로 포함되는지는
+            서버가 최종 검증한다.
+          - 사용자 메시지에서 variantId를 임의로 추론하지 마라.
 
           [보안 규칙]
 
@@ -393,11 +452,12 @@ public class ReviewChatbotService {
           {
             "intent": "SIZE_RECOMMENDATION",
             "criteria": {
+              "variantId": null,
               "productName": null,
               "heightCm": null,
               "weightKg": null,
               "fitPreference": null,
-              "reviewSearchText": null,
+              "semanticQuery": null,
               "skipBodyCondition": false
             },
             "missingRequiredFields": [],
@@ -405,8 +465,8 @@ public class ReviewChatbotService {
             "nextAction": "ASK_PRODUCT"
           }
           
-          [출력 예외 형식]
-          만약에 사용자가 "상품명이나 상품에 대한 정보 없이 사이즈 추천 요청"에 대한 요청만 있을 시에는, 상품을 찾기 위해서 상품명을 입력해달라고 말해주면 좋아 이떄는 JSON 형식으로 반환 안해도되고
+          상품명이 없거나 상품 후보 선택이 잘못된 경우에도
+          반드시 위 JSON 형식으로만 반환하라.
           """);
     }
 
