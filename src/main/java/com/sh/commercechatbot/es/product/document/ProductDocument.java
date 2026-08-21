@@ -1,4 +1,4 @@
-package com.sh.commercechatbot.es.document.product;
+package com.sh.commercechatbot.es.product.document;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

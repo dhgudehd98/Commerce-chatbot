@@ -1,6 +1,6 @@
 package com.sh.commercechatbot.es.product.dto;
 
-import com.sh.commercechatbot.es.document.product.ProductDocument;
+import com.sh.commercechatbot.es.product.document.ProductDocument;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

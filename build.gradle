@@ -33,6 +33,9 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	//Spring AI
+	implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter:1.0.0-M6'
 }
 
 tasks.named('test') {
