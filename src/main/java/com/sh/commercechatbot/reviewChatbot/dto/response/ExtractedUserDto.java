@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ExtractedUserDto {
-    private Long variantId;
     private String productName;
     private Integer heightCm;
     private Integer weightKg;
