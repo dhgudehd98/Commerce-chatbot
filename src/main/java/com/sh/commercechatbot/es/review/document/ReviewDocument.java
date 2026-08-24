@@ -52,10 +52,18 @@ public class ReviewDocument {
     @Field(type = FieldType.Keyword)
     private FitPreference fitPreference;
 
-    @Field(type = FieldType.Date)
+    @Field(
+            type = FieldType.Date,
+            format = {},
+            pattern = "uuuu-MM-dd'T'HH:mm:ss"
+    )
     private LocalDateTime createdAt;
 
-    @Field(type = FieldType.Date)
+    @Field(
+            type = FieldType.Date,
+            format = {},
+            pattern = "uuuu-MM-dd'T'HH:mm:ss"
+    )
     private LocalDateTime sourceUpdatedAt;
 
 
