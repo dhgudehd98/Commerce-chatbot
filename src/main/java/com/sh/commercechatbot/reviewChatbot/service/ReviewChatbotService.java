@@ -123,9 +123,28 @@ public class ReviewChatbotService {
             case SEARCH_REVIEWS -> handleSearchReviews(analysisResponseDto, requestDto, memberId);
             case GENERATE_RECOMMENDATION -> null;
             case COMPLETE -> null;
-            case OUT_OF_SCOPE -> null;
+            case OUT_OF_SCOPE -> handleOutOfScope(analysisResponseDto, requestDto, memberId);
             default -> null;
         };
+    }
+
+    private Mono<ChatResponseDto> handleOutOfScope(ConversationAnalysisResponseDto analysisResponseDto, ChatRequestDto requestDto, Long memberId) throws JsonProcessingException {
+        log.info("[Action OutOfScope] 지원범위 밖의 사용자 요청 : {}", requestDto.getCurrentMessage());
+        log.info("[LLM 판별 Intent : {}, NextAction : {}]", analysisResponseDto.getIntent(), analysisResponseDto.getNextAction());
+
+        ChatConversationState nextState = new ChatConversationState(
+                analysisResponseDto.getIntent(),
+                null,
+                List.of(),
+                analysisResponseDto.getNextAction()
+        );
+
+        ChatResponseDto chatResponseDto = new ChatResponseDto(
+                "해당 요청은 처리 할 수 없는 요청입니다. 해당 챗봇은 상품 사이즈에 대한 추천만 가능하므로, 원하시는 상품명의 사이즈 추천을 요청해주세요."
+                ,null
+        );
+
+        return saveStateAndReturnResponse(memberId, nextState, chatResponseDto);
     }
 
     //! 검색에 대한 부분 구현 마치고 해당 부분 구현
