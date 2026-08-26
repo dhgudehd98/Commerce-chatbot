@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
@@ -18,22 +17,23 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/api/chat")
 public class ReviewChatbotController {
 
+
     private final ReviewChatbotService reviewChatbotService;
 
-    @PostMapping("stream")
-    public Flux<ChatResponseDto> chat(
-            @RequestBody ChatRequestDto request
-    ) throws JsonProcessingException {
-        Long memberId = 1L;
-        return reviewChatbotService.chat(request, memberId);
-    }
+//    @PostMapping("stream")
+//    public Flux<ChatResponseDto> chat(
+//            @RequestBody ChatRequestDto request
+//    ) throws JsonProcessingException {
+//        Long memberId = 1L;
+//        return reviewChatbotService.chat(request, memberId);
+//    }
 
     @PostMapping("")
-    public Mono<ChatResponseDto> chatNonStream(
+    public Mono<ChatResponseDto> chat(
             @RequestBody ChatRequestDto request
     ) throws JsonProcessingException {
         Long memberId = 1L;
-        return reviewChatbotService.chatNonStream(request, memberId);
+        return reviewChatbotService.chat(memberId, request);
     }
 
 }

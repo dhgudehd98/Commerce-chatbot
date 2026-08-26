@@ -11,7 +11,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ChatRequestDto {
-    private ChatConversationState state;
     private Long selectedVariantId;
     private String currentMessage;
     private LlmModel llmModel;

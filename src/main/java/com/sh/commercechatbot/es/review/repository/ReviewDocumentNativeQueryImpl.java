@@ -55,11 +55,11 @@ public class ReviewDocumentNativeQueryImpl implements ReviewDocumentNativeQuery 
                     KnnQuery knnQuery = KnnQuery.of(k -> k
                             .field("contentEmbedding")
                             .queryVector(vectors)
-                            .k(10)
+                            .k(1)
                             .numCandidates(100)
                             .filter(f -> f
                                     .term(t -> t
-                                            .field("variantId")
+                                            .field("productVariantId")
                                             .value(variantId)
                                     )
                             )
@@ -89,6 +89,8 @@ public class ReviewDocumentNativeQueryImpl implements ReviewDocumentNativeQuery 
         Integer height = optionalInfoDto.getHeight();
         Integer weight = optionalInfoDto.getWeight();
 
+        // 둘다 입력한 경우에만 빈 값 설정 -> 범위값 산정을 못해서
+        // 값이 하나라도 있으면 있는 데이터 기준으로 데이터 조회
         if (height == null && weight == null) {
             return Mono.just(List.of());
         }
