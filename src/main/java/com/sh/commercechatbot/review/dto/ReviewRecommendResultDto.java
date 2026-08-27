@@ -1,6 +1,8 @@
 package com.sh.commercechatbot.review.dto;
 
 import com.sh.commercechatbot.enums.review.FitPreference;
+import com.sh.commercechatbot.enums.review.ReviewSearchScope;
+import com.sh.commercechatbot.enums.review.ReviewSearchType;
 import com.sh.commercechatbot.es.review.document.ReviewDocument;
 import com.sh.commercechatbot.reviewChatbot.dto.response.ConversationAnalysisResponseDto;
 import com.sh.commercechatbot.reviewChatbot.dto.response.ExtractedUserDto;
@@ -22,10 +24,13 @@ public class ReviewRecommendResultDto {
 
     // ES에서 검색된 리뷰 개수
     private Integer totalReviewCnt;
+
+    private ReviewSearchScope searchScope;
+
     // ES에서 검색된 리뷰 정보들
     private List<ReviewEvidence> evidences;
 
-    public static ReviewRecommendResultDto createReviewResultDto(Long variantId, ConversationAnalysisResponseDto analysisResponseDto, List<ReviewEvidence> evidences) {
+    public static ReviewRecommendResultDto createReviewResultDto(Long variantId, ConversationAnalysisResponseDto analysisResponseDto,ReviewSearchScope searchScope, List<ReviewEvidence> evidences) {
 
         UserCondition userCondition = new UserCondition(
                 analysisResponseDto.getHeightCm() == null ? null : analysisResponseDto.getHeightCm(),
@@ -36,6 +41,7 @@ public class ReviewRecommendResultDto {
                 variantId,
                 userCondition,
                 evidences.size(),
+                searchScope,
                 evidences
         );
     }

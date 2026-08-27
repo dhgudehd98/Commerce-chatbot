@@ -1,5 +1,7 @@
 package com.sh.commercechatbot.enums.review;
 
 public enum ReviewSearchType {
-    SEMANTIC_REVIEW, BODY_INFO_REVIEW
+    SEMANTIC_REVIEW,
+    BODY_INFO_REVIEW,
+    SEARCH_ALL
 }

@@ -32,6 +32,22 @@ public class ReviewSearchService {
     private final ReviewDocumentRepository reviewDocumentRepository;
     private final ChatConversationRepositoryInRedis conversationRepository;
 
+    public Mono<List<ReviewEvidence>> searchReviewAll(Long memberId, ChatRequestDto chatRequestDto, ChatConversationState conversationState, ConversationAnalysisResponseDto analysisResponseDto) {
+
+        ResolvedProductDto resolvedProductDto = conversationState.getProduct();
+
+        if (resolvedProductDto.getVariantId() == null) {
+            return Mono.error(new IllegalArgumentException("확정된 상품이 존재하지 않습니다."));
+        }
+
+
+        return reviewDocumentRepository.searchReviewAll(resolvedProductDto.getVariantId())
+                .map(reviewDocuments ->
+                        reviewDocuments.stream()
+                                .map(reviewDocument -> new ReviewEvidence(reviewDocument, ReviewSearchType.SEARCH_ALL))
+                                .toList()
+                );
+    }
     public Mono<List<ReviewEvidence>> searchReview(Long memberId, ChatRequestDto chatRequestDto, ChatConversationState conversationState, ConversationAnalysisResponseDto analysisResponseDto) {
 
         ReviewOptionalInfoDto optionalInfoDto = new ReviewOptionalInfoDto(
@@ -44,7 +60,7 @@ public class ReviewSearchService {
         ResolvedProductDto resolvedProductDto = conversationState.getProduct();
 
         if (resolvedProductDto.getVariantId() == null || resolvedProductDto.getProductName() == null) {
-            return Mono.error(new IllegalArgumentException("확정된 상품ㅋ이 존재하지 않습니다."));
+            return Mono.error(new IllegalArgumentException("확정된 상품이 존재하지 않습니다."));
         }
 
         Long variantId = resolvedProductDto.getVariantId();

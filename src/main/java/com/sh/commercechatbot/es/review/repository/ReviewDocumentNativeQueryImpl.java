@@ -8,10 +8,12 @@ import com.sh.commercechatbot.es.review.document.ReviewDocument;
 import com.sh.commercechatbot.es.review.dto.ReviewOptionalInfoDto;
 import com.sh.commercechatbot.es.review.repository.ReviewDocumentNativeQuery;
 
+import com.sh.commercechatbot.review.dto.ReviewEvidence;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
@@ -30,6 +32,38 @@ public class ReviewDocumentNativeQueryImpl implements ReviewDocumentNativeQuery 
 
     private final ReactiveElasticsearchOperations operations;
     private final EmbeddingModel embeddingModel;
+
+    @Override
+    public Mono<List<ReviewDocument>> searchReviewAll(Long variantId) {
+
+        NativeQuery query = NativeQuery.builder()
+                .withQuery(queryBuilder -> queryBuilder
+                        .bool(bool -> {
+                            bool.filter(filter -> filter
+                                    .term(term -> term
+                                            .field("productVariantId")
+                                            .value(variantId)
+                                    )
+                            );
+
+                            return bool;
+                        })
+                )
+                .withPageable(
+                        PageRequest.of(
+                                0,
+                                50,
+                                Sort.by(
+                                        Sort.Order.desc("sourceUpdatedAt")
+                                )
+                        )
+                )
+                .build();
+
+        return operations.search(query, ReviewDocument.class)
+                .map(searchHit -> searchHit.getContent())
+                .collectList();
+    }
     @Override
     public Mono<List<ReviewDocument>> searchByPreferenceQuery(Long variantId, String preferenceQuery) {
 
