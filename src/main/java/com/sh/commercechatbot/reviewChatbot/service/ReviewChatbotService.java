@@ -437,7 +437,7 @@ public class ReviewChatbotService {
 
     private Mono<ChatResponseDto> handleProvideSkipInfo(Long memberId, ChatRequestDto chatRequestDto, ChatConversationState state, ConversationAnalysisResponseDto analysisResponseDto) {
         log.info("[LLM 분석 결과 Intent : {}] 사용자 요청 : {}", analysisResponseDto.getIntent(), chatRequestDto.getCurrentMessage());
-        ReviewSearchScope searchScope = ReviewSearchScope.ALL_REVIEW;
+        ReviewSearchScope searchScope = ReviewSearchScope.RECENT_REVIEWS;
 
         // 사용자가 신체정보를 입력하지 않으면 가장 최근 리뷰 최대 50개 데이터가져오도록 설정
         return reviewSearchService.searchReviewAll(memberId, chatRequestDto, state, analysisResponseDto)
