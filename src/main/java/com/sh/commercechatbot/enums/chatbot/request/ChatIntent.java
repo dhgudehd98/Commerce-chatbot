@@ -10,6 +10,6 @@ public enum ChatIntent {
     PROVIDE_BODY_INFO, // 사용자가 사용자 정보 입력(키 , 몸무게, 선호핏)
     SKIP_BODY_INFO, // 사용자 정보 입력 생략
     OUT_OF_SCOPE, // 상품 사이즈 추천과 관련 없는 데이터 입력시
-    AFTER_REVIEW_RECOMMENDATION_ADDTIONAL_INFO // 상품 리뷰를 완료한 후에 추가 질문이 있는 경우
+    AFTER_REVIEW_RECOMMENDATION_ADDITIONAL_INFO // 상품 리뷰를 완료한 후에 추가 질문이 있는 경우
 
 }

@@ -27,9 +27,10 @@ Commerce API와 독립된 애플리케이션으로 실행한다.
     → 상품 Elasticsearch 검색
     → 사용자 질문 Embedding
     → 리뷰 Elasticsearch Hybrid Search
-    → 사이즈별 통계 계산
+    → 제한된 리뷰 근거 집합 생성
     → RAG Prompt 생성
-    → OpenAI LLM
+    → OpenAI LLM 추천 판단
+    → 서버 결과 정합성 검증
     → SSE 토큰 스트리밍
 
 ## 서비스 경계
@@ -48,9 +49,10 @@ Commerce API와 독립된 애플리케이션으로 실행한다.
 - 상품 및 ProductVariant 식별
 - Query Embedding 생성
 - Elasticsearch 검색
-- 사이즈 추천 통계 계산
+- 제한된 리뷰 근거 집합 생성
 - RAG Prompt 생성
 - LLM 스트리밍
+- LLM 결과의 상품·사이즈·리뷰 근거 정합성 검증
 
 ### 금지
 
@@ -116,7 +118,7 @@ Commerce API와 독립된 애플리케이션으로 실행한다.
 - analysis: 사용자 질문 의도와 검색 조건을 추출한다.
 - product: ProductVariant를 식별하고 후보 중복을 처리한다.
 - retrieval: Elasticsearch 검색과 Evidence 변환을 담당한다.
-- recommendation: 사이즈별 통계와 추천 가능 여부를 계산한다.
+- recommendation: 선별된 리뷰 근거를 추천 LLM 입력 모델로 구성하고 결과를 검증한다.
 - answer: RAG Prompt 생성, LLM 호출 및 토큰 스트리밍을 담당한다.
 
 Controller에 비즈니스 로직을 작성하지 않는다.
@@ -261,10 +263,9 @@ Transactional과 Reactor 체인을 혼합하지 않는다.
     → 상품/ProductVariant 식별
     → Query Embedding 생성
     → Review ES Hybrid Search
-    → 리뷰 통계 계산
-    → 추천 가능 여부 판단
+    → 제한된 리뷰 근거 집합 생성
     → RAG Prompt 생성
-    → LLM 스트리밍
+    → LLM 추천 판단 및 스트리밍
     → 응답 검증
 
 각 단계는 별도 Component로 분리한다. 하나의 Service 메서드에 전체 로직을 작성하지
@@ -304,17 +305,18 @@ Transactional과 Reactor 체인을 혼합하지 않는다.
 
 # 14. 추천 정책
 
-LLM이 추천 사이즈를 직접 결정하지 않는다. 애플리케이션이 다음 값을 먼저 계산한다.
+LLM은 검증된 상품 정보와 서버가 선별한 제한된 리뷰 근거를 바탕으로
+추천 사이즈와 근거를 판단한다.
 
-    유사 리뷰 수
-    사이즈별 구매 수
-    착용감 분포
-    핏 선호 일치 수
-    정사이즈 후보
-    오버핏 후보
-    추천 신뢰도
+서버는 LLM 결과가 다음 조건을 충족하는지 검증한다.
 
-LLM은 계산 결과를 자연어로 설명한다. 리뷰 근거가 부족하면 추천하지 않는다.
+    실제 존재하는 상품과 ProductVariant인지
+    추천 사이즈가 실제 상품 옵션에 포함되는지
+    답변이 전달된 리뷰 근거와 일치하는지
+    근거가 부족한데 임의의 사이즈를 생성하지 않았는지
+
+리뷰 근거가 부족하면 LLM은 특정 사이즈를 추천하지 않고 제한 사항을
+안내한다.
 
 ---
 
@@ -464,7 +466,7 @@ Metric Tag에 질문 원문과 개인정보를 넣지 않는다.
 - 질문 분석
 - 상품 후보 식별
 - 리뷰 검색 조건
-- 사이즈 통계 계산
+- 리뷰 근거 선별과 제한
 - 데이터 부족 판단
 - Prompt 생성
 - LLM 응답 검증
@@ -578,7 +580,6 @@ K6로 동시 SSE 연결, 첫 토큰 응답시간, 연결 유지시간, 오류율
     Event Loop에서 동기 JPA/Elasticsearch/Redis 호출
     Event Loop에서 파일 I/O
     트랜잭션 내부 LLM 호출
-    LLM을 통한 사이즈 직접 결정
     질문·답변·신체정보 로그
     무제한 Retry
     무제한 Buffer

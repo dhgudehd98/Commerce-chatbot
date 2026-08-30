@@ -6,18 +6,16 @@ import com.sh.commercechatbot.enums.review.ReviewSearchType;
 import com.sh.commercechatbot.es.review.document.ReviewDocument;
 import com.sh.commercechatbot.es.review.dto.ReviewOptionalInfoDto;
 import com.sh.commercechatbot.es.review.repository.ReviewDocumentRepository;
-import com.sh.commercechatbot.redis.chat.ChatConversationRepositoryInRedis;
+import com.sh.commercechatbot.redis.chat.dto.ChatSessionDto;
+import com.sh.commercechatbot.redis.chat.repository.ChatConversationRepositoryInRedis;
 import com.sh.commercechatbot.review.dto.ReviewEvidence;
-import com.sh.commercechatbot.review.dto.ReviewRecommendResultDto;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ChatConversationState;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ChatRequestDto;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ResolvedProductDto;
-import com.sh.commercechatbot.reviewChatbot.dto.response.ChatResponseDto;
 import com.sh.commercechatbot.reviewChatbot.dto.response.ConversationAnalysisResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
@@ -32,9 +30,9 @@ public class ReviewSearchService {
     private final ReviewDocumentRepository reviewDocumentRepository;
     private final ChatConversationRepositoryInRedis conversationRepository;
 
-    public Mono<List<ReviewEvidence>> searchReviewAll(Long memberId, ChatRequestDto chatRequestDto, ChatConversationState conversationState, ConversationAnalysisResponseDto analysisResponseDto) {
+    public Mono<List<ReviewEvidence>> searchReviewAll(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) {
 
-        ResolvedProductDto resolvedProductDto = conversationState.getProduct();
+        ResolvedProductDto resolvedProductDto = session.getProduct();
 
         if (resolvedProductDto.getVariantId() == null) {
             return Mono.error(new IllegalArgumentException("확정된 상품이 존재하지 않습니다."));
@@ -48,7 +46,7 @@ public class ReviewSearchService {
                                 .toList()
                 );
     }
-    public Mono<List<ReviewEvidence>> searchReview(Long memberId, ChatRequestDto chatRequestDto, ChatConversationState conversationState, ConversationAnalysisResponseDto analysisResponseDto) {
+    public Mono<List<ReviewEvidence>> searchReview(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) {
 
         ReviewOptionalInfoDto optionalInfoDto = new ReviewOptionalInfoDto(
                 analysisResponseDto.getHeightCm(),
@@ -57,7 +55,7 @@ public class ReviewSearchService {
                 analysisResponseDto.getSemanticQuery()
         );
 
-        ResolvedProductDto resolvedProductDto = conversationState.getProduct();
+        ResolvedProductDto resolvedProductDto = session.getProduct();
 
         if (resolvedProductDto.getVariantId() == null || resolvedProductDto.getProductName() == null) {
             return Mono.error(new IllegalArgumentException("확정된 상품이 존재하지 않습니다."));

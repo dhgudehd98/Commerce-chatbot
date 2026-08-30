@@ -1,4 +1,4 @@
-package com.sh.commercechatbot.redis.chat;
+package com.sh.commercechatbot.redis.chat.repository;
 
 
 import com.fasterxml.jackson.core.JsonProcessingException;
