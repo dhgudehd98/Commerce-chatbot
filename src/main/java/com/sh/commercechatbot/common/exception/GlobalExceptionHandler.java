@@ -5,6 +5,10 @@ package com.sh.commercechatbot.common.exception;
 import com.sh.commercechatbot.common.exception.auth.AuthException;
 import com.sh.commercechatbot.common.exception.brand.BrandException;
 import com.sh.commercechatbot.common.exception.card.CardException;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotError;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotErrorResponse;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotErrorType;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotException;
 import com.sh.commercechatbot.common.exception.delivery.DeliveryException;
 import com.sh.commercechatbot.common.exception.member.MemberException;
 import com.sh.commercechatbot.common.exception.order.OrderException;
@@ -20,8 +24,12 @@ import com.sh.commercechatbot.common.exception.wms.WarehouseException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
 import javax.security.auth.login.AccountException;
 import java.util.HashMap;
@@ -30,6 +38,24 @@ import java.util.Map;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Mono<ChatbotErrorResponse> handleGeneralException(Exception e, ServerWebExchange exchange) {
+        ServerHttpRequest request = exchange.getRequest();
+        log.error("[GeneralException] Request URI : {}, Method : {}, Error : {}", request.getURI(), request.getMethod(), e.getMessage(), e);
+        ChatbotError chatbotError = new ChatbotError("500", e.getMessage());
+        return Mono.just(new ChatbotErrorResponse(chatbotError));
+    }
+
+    @ExceptionHandler(ChatbotException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Mono<ChatbotErrorResponse> handleChatbotErrorTypeException(ChatbotException e, ServerWebExchange exchange) {
+        ServerHttpRequest request = exchange.getRequest();
+        log.error("[GeneralException] Request URI : {}, Method : {}, Error : {}", request.getURI(), request.getMethod(), e.getMessage(), e);
+        ChatbotError chatbotError = new ChatbotError(e.getChatbotErrorType().getCode(), e.getMessage());
+        return Mono.just(new ChatbotErrorResponse(chatbotError));
+    }
 
     @ExceptionHandler(OutboxException.class)
     public ResponseEntity<?> handleOutboxException(OutboxException e) {
@@ -115,17 +141,6 @@ public class GlobalExceptionHandler {
         res.put("result", "N");
         res.put("message", e.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleException(Exception e) {
-
-        log.error("[Exception Error Message] : " + e.getMessage());
-        Map<String, String> response = new HashMap<>();
-        response.put("result", "N");
-        response.put("message", "시스템 오류가 발생했습니다. 관리자에게 문의해주세요.");
-
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
 }

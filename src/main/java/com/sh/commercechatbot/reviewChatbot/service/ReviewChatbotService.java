@@ -1,5 +1,6 @@
 package com.sh.commercechatbot.reviewChatbot.service;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sh.commercechatbot.common.util.ChatUtilService;
@@ -8,26 +9,23 @@ import com.sh.commercechatbot.enums.review.ReviewSearchScope;
 import com.sh.commercechatbot.es.product.dto.ProductSearchResultDto;
 import com.sh.commercechatbot.es.product.repository.ProductDocumentRepository;
 import com.sh.commercechatbot.es.product.service.ReviewSearchService;
-import com.sh.commercechatbot.es.review.repository.ReviewDocumentRepository;
 import com.sh.commercechatbot.llm.dto.request.LlmChatRequestDto;
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
 import com.sh.commercechatbot.llm.enums.LlmModel;
 import com.sh.commercechatbot.llm.enums.LlmType;
 import com.sh.commercechatbot.llm.service.LlmClientService;
 import com.sh.commercechatbot.redis.chat.dto.ChatSessionDto;
-import com.sh.commercechatbot.redis.chat.repository.ChatConversationRepositoryInRedis;
 import com.sh.commercechatbot.redis.chat.repository.ChatSessionRepositoryInRedis;
-import com.sh.commercechatbot.redis.chat.repository.RecommendReviewChatHistoryRepositoryInRedis;
 import com.sh.commercechatbot.review.dto.RecommendHistory;
 import com.sh.commercechatbot.review.dto.ReviewAdditionalRequestDto;
 import com.sh.commercechatbot.review.dto.ReviewEvidence;
 import com.sh.commercechatbot.review.dto.ReviewRecommendResultDto;
-import com.sh.commercechatbot.reviewChatbot.dto.request.ChatConversationState;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ChatRequestDto;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ConversationAnalysisRequestDto;
 import com.sh.commercechatbot.reviewChatbot.dto.request.ResolvedProductDto;
 import com.sh.commercechatbot.reviewChatbot.dto.response.ChatResponseDto;
 import com.sh.commercechatbot.reviewChatbot.dto.response.ConversationAnalysisResponseDto;
+import jakarta.json.stream.JsonParsingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -53,31 +51,25 @@ public class ReviewChatbotService {
 
     public Mono<ChatResponseDto> chat(Long memberId, ChatRequestDto request) {
 
-        if (request.getSelectedVariantId() != null) return handleSelectedVariantId(memberId, request);
+        if (request.getSelectedVariantId() != null) {
+            return handleSelectedVariantId(memberId, request)
+                    .onErrorResume(exception -> {
+                        log.error("[상품 옵션 선택 에러 발생]", exception);
+                        return systemErrorResponse();
+                    });
+        }
 
         return chatSessionRepository.findChatSession(memberId)
                 .defaultIfEmpty(ChatSessionDto.initial())
-                .flatMap(session -> {
-                        try {
-                            return analyzeConversation(memberId, request, session);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException(e);
-                        }
-
+                .flatMap(session -> analyzeConversation(memberId, request, session))
+                .onErrorResume(exception -> {
+                    log.error("[챗봇 처리 요청 실패]", exception);
+                    return systemErrorResponse();
                 });
-//        return conversationRepository.findStateByMemberId(memberId)
-//                .defaultIfEmpty(ChatConversationState.initial())
-//                .flatMap(state -> {
-//                    try {
-//                        return analyzeConversation(memberId, request, state);
-//                    } catch (JsonProcessingException e) {
-//                        throw new RuntimeException(e);
-//                    }
-//                });
     }
 
-    private Mono<ChatResponseDto> analyzeConversation(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session) throws JsonProcessingException {
-        log.info("[챗봇 대화 분석 요청] memberId : {}, 입력 값 : {}", memberId, chatRequestDto.getCurrentMessage());
+    private Mono<ChatResponseDto> analyzeConversation(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session) {
+        log.info("[챗봇 대화 분석] memberId : {}, 입력 값 : {}", memberId, chatRequestDto.getCurrentMessage());
 
         LlmModel llmModel = chatRequestDto.getLlmModel();
         ConversationAnalysisRequestDto analysisRequestDto =
@@ -87,43 +79,95 @@ public class ReviewChatbotService {
                         chatRequestDto.getCurrentMessage()
                 );
 
-        String analysisRequestDtoToString = objectMapper.writeValueAsString(analysisRequestDto);
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(analysisRequestDto))
+                .flatMap(request -> {
+                    LlmChatRequestDto llmChatRequestDto = new LlmChatRequestDto(request, getAnalyzeConversationPrompt(), llmModel);
+                    LlmClientService clientService = llmClientServiceMap.get(llmModel.getLlmType());
 
-        LlmChatRequestDto llmChatRequestDto = new LlmChatRequestDto(analysisRequestDtoToString, getAnalyzeConversationPrompt(), llmModel);
-        LlmClientService clientService = llmClientServiceMap.get(llmModel.getLlmType());
-
-        return clientService.getNonStream(llmChatRequestDto)
-                .flatMap(llmChatResponseDto -> {
-                    try {
-                        return analysisResultFromLLM(memberId, chatRequestDto, session, llmChatResponseDto);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
+                    return clientService.getNonStream(llmChatRequestDto)
+                            .flatMap(llmChatResponseDto -> analysisResultFromLLM(memberId, chatRequestDto, session, llmChatResponseDto))
+                            .onErrorResume(exception -> {
+                                log.error("[챗봇 하위 로직 에러 발생] : ", exception);
+                                return systemErrorResponse();
+                            });
+                })
+                .onErrorResume(exception -> {
+                    log.error("[Analyze Conversation Failed]", exception);
+                    return systemErrorResponse();
                 });
     }
 
-    private Mono<ChatResponseDto> analysisResultFromLLM(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, LlmChatResponseDto llmChatResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> analysisResultFromLLM(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, LlmChatResponseDto llmChatResponseDto){
 
-        if (llmChatResponseDto.getResponseError() != null) {
-            log.error("[LLM 요청 간 에러 발생] ErrorMessage : {}", llmChatResponseDto.getResponseError());
+        if (llmChatResponseDto.getError() != null) {
+            log.error("[LLM 요청 간 에러 발생] ErrorMessage : {}", llmChatResponseDto.getError());
             return Mono.just(new ChatResponseDto("시스템 오류가 발생하였습니다. 잠시후에 다시 시도해주세요.", null));
         }
         log.info("[챗봇 대화 분석 완료] 응답 값 : {}", llmChatResponseDto.getLlmResponse());
 
-        ConversationAnalysisResponseDto analysisResponseDto = chatUtilService.parseToConversationResponse(llmChatResponseDto.getLlmResponse());
+        return Mono.fromCallable(() ->
+                        chatUtilService.parseToConversationResponse(
+                                llmChatResponseDto.getLlmResponse()
+                        )
+                )
+                .flatMap(analysisResponseDto ->
+                        switch (analysisResponseDto.getIntent()) {
+                            case REQUEST_SIZE_RECOMMENDATION ->
+                                    handleRequestSize(
+                                            memberId,
+                                            chatRequestDto,
+                                            analysisResponseDto
+                                    );
 
-        return switch (analysisResponseDto.getIntent()) {
-            case REQUEST_SIZE_RECOMMENDATION -> handleRequestSize(memberId, chatRequestDto, analysisResponseDto);
-            case PROVIDE_PRODUCT_NAME -> handleProvideProductName(memberId, chatRequestDto, session, analysisResponseDto);
-            case PROVIDE_BODY_INFO -> handleProvideBodyInfo(memberId, chatRequestDto, session, analysisResponseDto);
-            case SKIP_BODY_INFO -> handleProvideSkipInfo(memberId, chatRequestDto, session, analysisResponseDto);
-            case AFTER_REVIEW_RECOMMENDATION_ADDITIONAL_INFO -> handleReviewAdditionalInfo(memberId, chatRequestDto, session, analysisResponseDto);
-            case OUT_OF_SCOPE -> handleOutOfScope(memberId, chatRequestDto, session, analysisResponseDto);
-            default ->  null;
-        };
+                            case PROVIDE_PRODUCT_NAME ->
+                                    handleProvideProductName(
+                                            memberId,
+                                            chatRequestDto,
+                                            session,
+                                            analysisResponseDto
+                                    );
+
+                            case PROVIDE_BODY_INFO ->
+                                    handleProvideBodyInfo(
+                                            memberId,
+                                            chatRequestDto,
+                                            session,
+                                            analysisResponseDto
+                                    );
+
+                            case SKIP_BODY_INFO ->
+                                    handleProvideSkipInfo(
+                                            memberId,
+                                            chatRequestDto,
+                                            session,
+                                            analysisResponseDto
+                                    );
+
+                            case AFTER_REVIEW_RECOMMENDATION_ADDITIONAL_INFO ->
+                                    handleReviewAdditionalInfo(
+                                            memberId,
+                                            chatRequestDto,
+                                            session,
+                                            analysisResponseDto
+                                    );
+
+                            case OUT_OF_SCOPE ->
+                                    handleOutOfScope(
+                                            memberId,
+                                            chatRequestDto,
+                                            session,
+                                            analysisResponseDto
+                                    );
+                        }
+                )
+                .onErrorResume(exception -> {
+                    log.error("[사용자 의도 분석 Parsing Failed]", exception);
+
+                    return systemErrorResponse();
+                });
     }
 
-    private Mono<ChatResponseDto> handleRequestSize(Long memberId, ChatRequestDto chatRequestDto, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> handleRequestSize(Long memberId, ChatRequestDto chatRequestDto, ConversationAnalysisResponseDto analysisResponseDto) {
         log.info("[LLM 분석 결과 Intent : {}] 사용자 요청 : {}", analysisResponseDto.getIntent(), chatRequestDto.getCurrentMessage());
 
         ChatSessionDto session = new ChatSessionDto(
@@ -140,49 +184,36 @@ public class ReviewChatbotService {
         return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
-    private Mono<ChatResponseDto> handleProvideProductName(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> handleProvideProductName(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) {
         log.info("[LLM 분석 결과 Intent : {}] 사용자 요청 : {}", analysisResponseDto.getIntent(), chatRequestDto.getCurrentMessage());
-
         // LLM이 상품명을 추출하지 못한 경우 상품 다시 입력하도록 요청
         String productName = analysisResponseDto.getProductName();
+
         if (productName == null || productName.isBlank()) {
             return askProductNameAgain(memberId);
         }
 
-
-        return productDocumentRepository.search(analysisResponseDto.getProductName())
+        return productDocumentRepository.search(productName)
                 .collectList()
                 .flatMap(products -> {
                     log.info("[상품 {} 검색 결과] 상품 수 : {}", analysisResponseDto.getProductName(), products.size());
 
-                    // 상품이 존재하지 않는 경우
-                    if(products.isEmpty()) {
-                        try {
-                            return productNotFound(memberId, chatRequestDto);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
+                    if (products.isEmpty())
+                        return productNotFound(memberId, chatRequestDto);
 
-                    // 단일 상품만 검색된 경우
                     if (products.size() == 1) {
-                        try{
-                            return productSingleFound(memberId, chatRequestDto, products.get(0), analysisResponseDto);
-                        }catch (JsonProcessingException e) {
-                            throw new RuntimeException(e);
-                        }
+                        return productSingleFound(memberId, chatRequestDto, products.get(0), analysisResponseDto);
                     }
 
-                    // 여러개의 상품이 검색된 경우
-                    try {
-                        return productMultiFound(memberId, chatRequestDto, products, analysisResponseDto);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
+                    return productMultiFound(memberId, chatRequestDto, products,analysisResponseDto);
+                })
+                .onErrorResume(exception -> {
+                    log.error("[ES 연결 및 검색 오류] : ", exception);
+                    return systemErrorResponse();
                 });
     }
 
-    private Mono<ChatResponseDto> askBodyInfoAgain(Long memberId, ChatSessionDto chatSessionDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> askBodyInfoAgain(Long memberId, ChatSessionDto chatSessionDto){
 
         ChatSessionDto session = new ChatSessionDto(
                 ConversationStep.AWAITING_BODY_INFO,
@@ -200,7 +231,7 @@ public class ReviewChatbotService {
         return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
-    private Mono<ChatResponseDto> askProductNameAgain(Long memberId) throws JsonProcessingException {
+    private Mono<ChatResponseDto> askProductNameAgain(Long memberId){
 
         ChatSessionDto session = new ChatSessionDto(
                 ConversationStep.AWAITING_PRODUCT_NAME,
@@ -220,7 +251,7 @@ public class ReviewChatbotService {
 
     // 입력한 상품명과 ES에 저장된 상품명이 한개만 발견된 경우
 
-    private Mono<ChatResponseDto> productNotFound(Long memberId, ChatRequestDto chatRequestDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> productNotFound(Long memberId, ChatRequestDto chatRequestDto) {
 
         ChatSessionDto session = new ChatSessionDto(
                 ConversationStep.AWAITING_PRODUCT_NAME,
@@ -240,7 +271,7 @@ public class ReviewChatbotService {
             Long memberId,
             ChatRequestDto chatRequestDto,
             ProductSearchResultDto searchResultDto,
-            ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+            ConversationAnalysisResponseDto analysisResponseDto){
         log.info("[상품명 검색 결과 : 1] : 상품명 : {}", searchResultDto.getProductName());
 
         ChatSessionDto session = new ChatSessionDto(
@@ -269,7 +300,7 @@ public class ReviewChatbotService {
         return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
-    private Mono<ChatResponseDto> productMultiFound(Long memberId, ChatRequestDto chatRequestDto, List<ProductSearchResultDto> products, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> productMultiFound(Long memberId, ChatRequestDto chatRequestDto, List<ProductSearchResultDto> products, ConversationAnalysisResponseDto analysisResponseDto){
         log.info("[상품명 검색 결과 : {}]", products.size());
 
         List<ResolvedProductDto> candidates = products.stream()
@@ -306,22 +337,17 @@ public class ReviewChatbotService {
                 .flatMap(session -> {
                     List<ResolvedProductDto> candidates = session.getProductCandidates() == null ? List.of() : session.getProductCandidates();
                     Long variantId = request.getSelectedVariantId();
+
                     return candidates.stream()
                             .filter(resolveProduct -> resolveProduct.getVariantId().equals(variantId))
                             .findFirst()
-                            .map(resolvedProductDto -> {
-                                try {
-                                    return confirmProductVariantId(memberId, resolvedProductDto);
-                                } catch (JsonProcessingException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            })
+                            .map(resolvedProductDto -> confirmProductVariantId(memberId, resolvedProductDto))
                             .orElseGet(() -> Mono.just(new ChatResponseDto("해당 상품 정보를 찾을 수 없습니다. 잠시 후에 다시 시도해주세요.", null)));
                 });
 
     }
 
-    private Mono<ChatResponseDto> confirmProductVariantId(Long memberId, ResolvedProductDto resolvedProductDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> confirmProductVariantId(Long memberId, ResolvedProductDto resolvedProductDto){
 
         log.info("[상품 후보 여러개 중, 상품 하나 확정] 상품ID : {}, 상품명 : {}", resolvedProductDto.getVariantId(), resolvedProductDto.getProductName());
 
@@ -342,7 +368,7 @@ public class ReviewChatbotService {
         return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
-    private Mono<ChatResponseDto> handleProvideBodyInfo(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> handleProvideBodyInfo(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto){
         log.info("[LLM 분석 결과 Intent : {}] 사용자 요청 : {}", analysisResponseDto.getIntent(), chatRequestDto.getCurrentMessage());
 
         if (session == null
@@ -371,22 +397,17 @@ public class ReviewChatbotService {
                 .flatMap(reviewEvidence -> {
 
                     // 리뷰의 정보가 존재하지 않을때
-                    if (reviewEvidence.isEmpty()) {
-                        try {
-                            return notFoundSearchReview(memberId, session, analysisResponseDto, searchScope);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                    try {
-                        return generateReviewAnswerToLLM(memberId, session, chatRequestDto, analysisResponseDto, reviewEvidence, searchScope);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
+                    if (reviewEvidence.isEmpty()) return notFoundSearchReview(memberId, session, analysisResponseDto, searchScope);
+
+                    return generateReviewAnswerToLLM(memberId, session, chatRequestDto, analysisResponseDto, reviewEvidence, searchScope);
+                })
+                .onErrorResume(exception -> {
+                    log.error("[리뷰 ES 검색 시 에러 발생]", exception);
+                    return systemErrorResponse();
                 });
     }
 
-    private Mono<ChatResponseDto> notFoundSearchReview(Long memberId, ChatSessionDto chatSessionDto, ConversationAnalysisResponseDto analysisResponseDto, ReviewSearchScope searchScope) throws JsonProcessingException {
+    private Mono<ChatResponseDto> notFoundSearchReview(Long memberId, ChatSessionDto chatSessionDto, ConversationAnalysisResponseDto analysisResponseDto, ReviewSearchScope searchScope) {
 
         ConversationStep conversationStep = ConversationStep.SKIP_BODY_INFO;
         StringBuilder responseBuilder = new StringBuilder();
@@ -414,45 +435,42 @@ public class ReviewChatbotService {
         return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
-
     private Mono<ChatResponseDto> generateReviewAnswerToLLM(
             Long memberId,
             ChatSessionDto session,
             ChatRequestDto chatRequestDto,
             ConversationAnalysisResponseDto analysisResponseDto,
             List<ReviewEvidence> reviewEvidences,
-            ReviewSearchScope searchScope) throws JsonProcessingException {
+            ReviewSearchScope searchScope) {
 
         log.info("[상품 리뷰 바탕으로 LLM에게 사이즈 추천 요청]");
         LlmModel llmModel = chatRequestDto.getLlmModel();
 
         ReviewRecommendResultDto recommendResult = ReviewRecommendResultDto.createReviewResultDto(session.getProduct().getVariantId(), analysisResponseDto, searchScope, reviewEvidences);
-        String request = objectMapper.writeValueAsString(recommendResult);
 
-        LlmChatRequestDto llmChatRequestDto = new LlmChatRequestDto(
-                request,
-                getRecommendReviewPrompt(),
-                llmModel
-        );
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(recommendResult))
+                .flatMap(request -> {
+            LlmChatRequestDto llmChatRequestDto = new LlmChatRequestDto(
+                    request,
+                    getRecommendReviewPrompt(),
+                    llmModel
+            );
 
-        LlmClientService clientService = llmClientServiceMap.get(llmModel.getLlmType());
+            LlmClientService clientService = llmClientServiceMap.get(llmModel.getLlmType());
 
-        return clientService.getNonStream(llmChatRequestDto)
-                .flatMap(llmChatResponseDto -> {
-                    try {
-                        return getRecommendAnswer(memberId, session, llmChatResponseDto, recommendResult, chatRequestDto);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+            return clientService.getNonStream(llmChatRequestDto)
+                    .flatMap(llmChatResponseDto -> getRecommendAnswer(memberId, session,llmChatResponseDto, recommendResult, chatRequestDto));
+        });
     }
+
+
 
     private Mono<ChatResponseDto> getRecommendAnswer(
             Long memberId,
             ChatSessionDto chatSessionDto,
             LlmChatResponseDto llmChatResponseDto,
             ReviewRecommendResultDto recommendResultDto,
-            ChatRequestDto chatRequestDto) throws JsonProcessingException {
+            ChatRequestDto chatRequestDto){
 
 
         // 대화 내역 저장 -> 여기서 추가한다해도 Redis 저장에 실패해도 history 내역에 추가가 되지 않아서 상관없을듯
@@ -467,12 +485,9 @@ public class ReviewChatbotService {
                 recommendResultDto
         );
 
-        return chatSessionRepository.save(memberId,session)
-                .flatMap(saved -> {
-                    if (!saved) return Mono.just(new ChatResponseDto("시스템 오류가 발생하였습니다. 잠시후에 다시 시도해주세요.", null));
+        ChatResponseDto chatResponseDto = new ChatResponseDto(llmChatResponseDto.getLlmResponse(), null);
 
-                    return Mono.just(new ChatResponseDto(llmChatResponseDto.getLlmResponse(), null));
-                });
+        return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
     private Mono<ChatResponseDto> handleProvideSkipInfo(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) {
@@ -484,22 +499,17 @@ public class ReviewChatbotService {
                 .flatMap(reviewEvidence -> {
 
                 // 리뷰의 정보가 존재하지 않을때
-                if (reviewEvidence.isEmpty()) {
-                    try {
-                        return notFoundSearchReview(memberId, session, analysisResponseDto, searchScope);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                try {
-                    return generateReviewAnswerToLLM(memberId, session, chatRequestDto, analysisResponseDto, reviewEvidence, searchScope);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                }
-        });
+                if (reviewEvidence.isEmpty())
+                    return notFoundSearchReview(memberId, session, analysisResponseDto, searchScope);
+
+                return generateReviewAnswerToLLM(memberId, session, chatRequestDto, analysisResponseDto, reviewEvidence, searchScope);
+        }).onErrorResume(exception -> {
+                    log.error("[모든 리뷰 검색중 ES 에러 발생]");
+                    return systemErrorResponse();
+                });
     }
 
-    private Mono<ChatResponseDto> handleOutOfScope(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto chatSessionDto, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> handleOutOfScope(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto chatSessionDto, ConversationAnalysisResponseDto analysisResponseDto) {
         log.info("[LLM 분석 결과 Intent : {}] 사용자 요청 : {}", analysisResponseDto.getIntent(), chatRequestDto.getCurrentMessage());
 
         ChatSessionDto session = new ChatSessionDto(
@@ -517,7 +527,7 @@ public class ReviewChatbotService {
         return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
     }
 
-    private Mono<ChatResponseDto> handleReviewAdditionalInfo(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> handleReviewAdditionalInfo(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto){
         log.info("[LLM 분석 결과 Intent : {}] 사용자 요청 : {}", analysisResponseDto.getIntent(), chatRequestDto.getCurrentMessage());
 
         if (session == null
@@ -531,20 +541,16 @@ public class ReviewChatbotService {
             ));
         }
 
-        try {
-            return generateReviewAdditionalInfoToLLM(
-                    memberId,
-                    chatRequestDto,
-                    session,
-                    analysisResponseDto
-            );
-        } catch (JsonProcessingException e) {
-            return Mono.error(e);
-        }
+        return generateReviewAdditionalInfoToLLM(
+                memberId,
+                chatRequestDto,
+                session,
+                analysisResponseDto
+        );
 
     }
 
-    private Mono<ChatResponseDto> generateReviewAdditionalInfoToLLM(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> generateReviewAdditionalInfoToLLM(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto session, ConversationAnalysisResponseDto analysisResponseDto){
 
         LlmModel llmModel = chatRequestDto.getLlmModel();
 
@@ -553,27 +559,23 @@ public class ReviewChatbotService {
                 session,
                 chatRequestDto.getCurrentMessage()
         );
-        String request = objectMapper.writeValueAsString(additionalRequestDto);
 
-        LlmChatRequestDto llmChatRequestDto = new LlmChatRequestDto(
-                request,
-                getAdditionalInfoPrompt(),
-                llmModel
-        );
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(additionalRequestDto))
+                .flatMap(request -> {
+                    LlmChatRequestDto llmChatRequestDto = new LlmChatRequestDto(
+                            request,
+                            getAdditionalInfoPrompt(),
+                            llmModel
+                    );
 
-        LlmClientService clientService = llmClientServiceMap.get(llmModel.getLlmType());
+                    LlmClientService clientService = llmClientServiceMap.get(llmModel.getLlmType());
 
-        return clientService.getNonStream(llmChatRequestDto)
-                .flatMap(llmChatResponseDto -> {
-                    try {
-                        return getAdditionalInfoAnswer(memberId, chatRequestDto, session, llmChatResponseDto);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    }
+                    return clientService.getNonStream(llmChatRequestDto)
+                            .flatMap(llmChatResponseDto -> getAdditionalInfoAnswer(memberId,chatRequestDto, session, llmChatResponseDto));
                 });
     }
 
-    private Mono<ChatResponseDto> getAdditionalInfoAnswer(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto chatSessionDto, LlmChatResponseDto llmChatResponseDto) throws JsonProcessingException {
+    private Mono<ChatResponseDto> getAdditionalInfoAnswer(Long memberId, ChatRequestDto chatRequestDto, ChatSessionDto chatSessionDto, LlmChatResponseDto llmChatResponseDto){
 
         chatSessionDto.getRecommendResult().addHistory(
                 new RecommendHistory(chatRequestDto.getCurrentMessage(), llmChatResponseDto.getLlmResponse())
@@ -587,22 +589,26 @@ public class ReviewChatbotService {
                 chatSessionDto.getRecommendResult()
         );
 
-        return chatSessionRepository.save(memberId, session)
-                .flatMap(saved -> {
-                    if(!saved) Mono.just(new ChatResponseDto("시스템 오류가 발생하였습니다. 잠시후에 다시 시도해주세요", null));
+        ChatResponseDto chatResponseDto = new ChatResponseDto(llmChatResponseDto.getLlmResponse(), null);
 
-                    return Mono.just(new ChatResponseDto(llmChatResponseDto.getLlmResponse(), null));
+        return saveSessionAndReturnResponse(memberId, session, chatResponseDto);
+    }
+
+    private Mono<ChatResponseDto> saveSessionAndReturnResponse(Long memberId, ChatSessionDto chatSessionDto, ChatResponseDto chatResponseDto){
+        return chatSessionRepository.save(memberId, chatSessionDto)
+                .flatMap(saved -> {
+                    if(!saved) return systemErrorResponse();
+
+                    return Mono.just(chatResponseDto);
+                })
+                .onErrorResume(exception -> {
+                    log.error("[Chat Session save Failed]", exception);
+                    return systemErrorResponse();
                 });
     }
 
-    private Mono<ChatResponseDto> saveSessionAndReturnResponse(Long memberId, ChatSessionDto chatSessionDto, ChatResponseDto chatResponseDto) throws JsonProcessingException {
-        return chatSessionRepository.save(memberId, chatSessionDto)
-                .flatMap(saved -> {
-                    if(!saved) {
-                        return Mono.just(new ChatResponseDto("시스템 오류가 발생하였습니다. 잠시후에 다시 시도해주세요.", null));
-                    }
-                    return Mono.just(chatResponseDto);
-                });
+    private Mono<ChatResponseDto> systemErrorResponse() {
+        return Mono.just(new ChatResponseDto("시스템 오류가 발생하였습니다. 잠시 후에 다시 시도해주세요.", null));
     }
 
     private String getAdditionalInfoPrompt() {

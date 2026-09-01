@@ -43,14 +43,16 @@ public class ChatSessionRepositoryInRedis {
                 });
     }
 
-    public Mono<Boolean> save(Long memberId, ChatSessionDto chatSessionDto) throws JsonProcessingException {
+    public Mono<Boolean> save(Long memberId, ChatSessionDto chatSessionDto){
 
         String key = createKey(memberId);
-        String jsonState = mapper.writeValueAsString(chatSessionDto);
-
-
-        return redisTemplate.opsForValue()
-                .set(key, jsonState, STATE_TTL);
+        return Mono.fromCallable(() ->
+                        mapper.writeValueAsString(chatSessionDto)
+                )
+                .flatMap(jsonState ->
+                        redisTemplate.opsForValue()
+                                .set(key, jsonState, STATE_TTL)
+                );
     }
 
     public Mono<Boolean> delete(Long memberId) {

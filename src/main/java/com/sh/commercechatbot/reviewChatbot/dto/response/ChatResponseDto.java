@@ -1,7 +1,8 @@
 package com.sh.commercechatbot.reviewChatbot.dto.response;
 
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotError;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotErrorResponse;
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
-import com.sh.commercechatbot.llm.dto.response.LlmChatResponseError;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,9 +13,10 @@ import lombok.NoArgsConstructor;
 public class ChatResponseDto {
 
     private String response;
-    private LlmChatResponseError responseError;
+    private ChatbotError error;
 
     public ChatResponseDto(LlmChatResponseDto llmChatResponseDto) {
         this.response = llmChatResponseDto.getLlmResponse();
+        this.error = llmChatResponseDto.getError();
     }
 }

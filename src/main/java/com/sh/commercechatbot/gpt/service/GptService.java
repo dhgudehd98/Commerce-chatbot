@@ -1,15 +1,18 @@
 package com.sh.commercechatbot.gpt.service;
 
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotError;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotErrorType;
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotException;
 import com.sh.commercechatbot.gpt.dto.request.GptRequestDto;
 import com.sh.commercechatbot.gpt.dto.response.GptResponseDto;
 import com.sh.commercechatbot.llm.dto.request.LlmChatRequestDto;
 import com.sh.commercechatbot.llm.dto.response.LlmChatResponseDto;
-import com.sh.commercechatbot.llm.dto.response.LlmChatResponseError;
 import com.sh.commercechatbot.llm.enums.LlmType;
 import com.sh.commercechatbot.llm.service.LlmClientService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -41,11 +44,13 @@ public class GptService implements LlmClientService {
                 .header("Authorization", "Bearer " + gptApiKey)
                 .bodyValue(gptRequestDto)
                 .retrieve()
-//                .onStatus(HttpStatusCode::is4xxClientError, (clientResponse -> {
-//                    return clientResponse.bodyToMono(String.class).flatMap(body -> {
-//                        return Mono.error(new GptErrorException("API 요청실패 : " + body));
-//                    });
-//                }))
+                .onStatus(HttpStatusCode::is4xxClientError, (clientResponse -> {
+                    return clientResponse.bodyToMono(String.class)
+                            .flatMap(body ->{
+                                log.error("Error Response : {}", body);
+                                return Mono.error(new ChatbotException("LLM GPT API 요청 실패 : " + body, ChatbotErrorType.GPT_RESPONSE_ERROR));
+                            });
+                }))
                 .bodyToFlux(GptResponseDto.class)
                 .takeWhile(response -> Optional.ofNullable(response.getSingleChoice().getFinish_reason()).isEmpty())
                 .map(gptResponseDto -> {
@@ -54,7 +59,7 @@ public class GptService implements LlmClientService {
                         return LlmChatResponseDto.getLlmChatResponseDtoFromNotStream(gptResponseDto);
                     } catch (Exception e) {
                         log.error("[GPT Response Error] : " + e.getMessage());
-                        return new LlmChatResponseDto(new LlmChatResponseError("500" , e.getMessage()));
+                        return new LlmChatResponseDto(new ChatbotError("500" , e.getMessage()));
                     }
                 });
     }
@@ -67,6 +72,13 @@ public class GptService implements LlmClientService {
                 .header("Authorization", "Bearer " + gptApiKey)
                 .bodyValue(request)
                 .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, (clientResponse -> {
+                    return clientResponse.bodyToMono(String.class)
+                            .flatMap(body ->{
+                                log.error("Error Response : {}", body);
+                                return Mono.error(new ChatbotException("LLM GPT API 요청 실패 : " + body, ChatbotErrorType.GPT_RESPONSE_ERROR));
+                            });
+                }))
                 .bodyToMono(GptResponseDto.class)
                 .map(response -> {
                     String content = response
