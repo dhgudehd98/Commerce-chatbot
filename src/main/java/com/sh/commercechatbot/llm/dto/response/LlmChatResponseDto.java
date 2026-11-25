@@ -1,0 +1,31 @@
+package com.sh.commercechatbot.llm.dto.response;
+
+import com.sh.commercechatbot.common.exception.chatbot.ChatbotError;
+import com.sh.commercechatbot.gpt.dto.response.GptResponseDto;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
+public class LlmChatResponseDto {
+    private String llmResponse;
+    private ChatbotError error;
+
+    public LlmChatResponseDto(ChatbotError responseError) {
+        this.error = responseError;
+    }
+
+    public LlmChatResponseDto(String llmResponse) {
+        this.llmResponse = llmResponse;
+    }
+
+    public static LlmChatResponseDto getLlmChatResponseDtoFromStream(GptResponseDto gptResponseDto) {
+        return new LlmChatResponseDto(gptResponseDto.getSingleChoice().getDelta().getContent());
+    }
+
+    public static LlmChatResponseDto getLlmChatResponseDtoFromNotStream(GptResponseDto gptResponseDto) {
+        return new LlmChatResponseDto(gptResponseDto.getSingleChoice().getMessage().getContent());
+    }
+}
